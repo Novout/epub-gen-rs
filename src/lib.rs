@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{Cursor, Write};
 use zip::write::{FileOptions};
 use slugify::slugify;
+use chrono::{Local};
 use uuid::Uuid;
 
 pub struct Info {
@@ -10,8 +11,6 @@ pub struct Info {
   pub publisher: String,
   pub author: String,
   pub toc_title: String,
-  pub append_chapter_titles: bool,
-  pub date: String,
   pub lang: String,
   pub fonts: Vec<String>,
   pub css: Option<String>,
@@ -116,10 +115,10 @@ impl EPUB {
       let src = format!("{}.xhtml", slugify!(&chapter[0], separator = "_"));
 
       li.push(format!("<navPoint id=\"{}\" playOrder=\"{}\" class=\"chapter\">
-    <navLabel>
-      <text>{}</text>
-    </navLabel>
-    <content src=\"{}\"/>
+  <navLabel>
+    <text>{}</text>
+  </navLabel>
+  <content src=\"{}\"/>
 </navPoint>", content_id, next, title, src));
     }
 
@@ -196,7 +195,7 @@ impl EPUB {
   <manifest>
     {manifest}
   </manifest>
-</package>", uuid=unique_identifier, author=self.info.author, lang=self.info.lang, title=self.info.title, date=self.info.date, publisher=self.info.publisher, manifest=self.manifest());
+</package>", uuid=unique_identifier, author=self.info.author, lang=self.info.lang, title=self.info.title, date=Local::now(), publisher=self.info.publisher, manifest=self.manifest());
 
     zip.write_all(content.as_bytes())?;
 
@@ -205,29 +204,29 @@ impl EPUB {
     let toc = format!("
     <?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">
-    <head>
-        <meta name=\"dtb:uid\" content=\"{uuid}\" />
-        <meta name=\"dtb:generator\" content=\"epub-gen-rs\"/>
-        <meta name=\"dtb:depth\" content=\"1\"/>
-        <meta name=\"dtb:totalPageCount\" content=\"0\"/>
-        <meta name=\"dtb:maxPageNumber\" content=\"0\"/>
-    </head>
-    <docTitle>
-        <text>{title}</text>
-    </docTitle>
-    <docAuthor>
-        <text>{author}</text>
-    </docAuthor>
-    <navMap>
-      <navPoint id=\"toc\" playOrder=\"0\" class=\"chapter\">
-        <navLabel>
-          <text>Table of Content</text>
-        </navLabel>
-        <content src=\"toc.xhtml\"/>
-      </navPoint>
-      {toc}
-    </navMap>
-</ncx>", uuid=unique_identifier, author=self.info.author, title=self.info.title, toc=self.toc_ncx());
+  <head>
+    <meta name=\"dtb:uid\" content=\"{uuid}\" />
+    <meta name=\"dtb:generator\" content=\"epub-gen-rs\"/>
+    <meta name=\"dtb:depth\" content=\"1\"/>
+    <meta name=\"dtb:totalPageCount\" content=\"0\"/>
+    <meta name=\"dtb:maxPageNumber\" content=\"0\"/>
+  </head>
+  <docTitle>
+    <text>{title}</text>
+  </docTitle>
+  <docAuthor>
+    <text>{author}</text>
+  </docAuthor>
+  <navMap>
+    <navPoint id=\"toc\" playOrder=\"0\" class=\"chapter\">
+      <navLabel>
+        <text>{toc_title}</text>
+      </navLabel>
+      <content src=\"toc.xhtml\"/>
+    </navPoint>
+    {toc}
+  </navMap>
+</ncx>", uuid=unique_identifier, author=self.info.author, title=self.info.title, toc_title=self.info.toc_title, toc=self.toc_ncx());
 
     zip.write_all(toc.as_bytes())?;
 
@@ -294,8 +293,6 @@ mod tests {
       publisher: String::from("test"),
       author: String::from("test"),
       toc_title: String::from("test"),
-      append_chapter_titles: false,
-      date: String::from("2323-02-02"),
       lang: String::from("en"),
       fonts: vec![String::from("en")],
       css: None,

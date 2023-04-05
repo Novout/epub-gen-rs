@@ -25,8 +25,6 @@ let mut epub = EPUB::new(Info {
   publisher: String::from("..."),
   author: String::from("..."),
   toc_title: String::from("Table of Contents"),
-  append_chapter_titles: false,
-  date: String::from("2323-02-02"),
   lang: String::from("en"),
   fonts: vec![String::from("Roboto")],
   css: None,
