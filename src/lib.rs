@@ -86,6 +86,26 @@ impl EPUB {
 {}", xhtml_targets)
   }
 
+  fn spine_ncx(&self) -> String {
+    let mut refs = vec![];
+
+    for (index, _) in self.chapters.iter().enumerate() {
+      let content_id = format!("content_{}_item_{}", index, index);
+      refs.push(format!("<itemref idref=\"{}\"/>", content_id));
+    }
+
+    let data = refs
+      .iter()
+      .map(|s| s.to_string())
+      .reduce(|cur: String, nxt: String| cur + &nxt + "\n")
+      .unwrap();
+
+    format!("<spine toc=\"ncx\">
+  <itemref idref=\"toc\" />
+  {refs}
+</spine>", refs=data)
+  }
+
   fn toc_xhtml(&self) -> String {
     let mut li = vec![];
 
@@ -138,6 +158,10 @@ impl EPUB {
       .compression_method(zip::CompressionMethod::Stored)
       .unix_permissions(0o755);
 
+    let deflated = FileOptions::default()
+      .compression_method(zip::CompressionMethod::Deflated)
+      .unix_permissions(0o755);
+
     // write raw for one-generation in toc.(ncx|xhtml) and *.xhtml
     let chapters = self.write_chapters();
 
@@ -156,9 +180,9 @@ impl EPUB {
 </container>")?;
 
     // OEBPS
-    zip.add_directory("OEBPS/", Default::default())?;
+    zip.add_directory("OEBPS/", deflated)?;
     // content.opf (info and file bindings)
-    zip.start_file("OEBPS/content.opf", Default::default())?;
+    zip.start_file("OEBPS/content.opf", deflated)?;
     // uuid for unique-identifier
     let unique_identifier: Uuid = Uuid::new_v4();
     let content: String = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -195,12 +219,16 @@ impl EPUB {
   <manifest>
     {manifest}
   </manifest>
-</package>", uuid=unique_identifier, author=self.info.author, lang=self.info.lang, title=self.info.title, date=Local::now(), publisher=self.info.publisher, manifest=self.manifest());
+  <guide>
+    {spine}
+    <reference type=\"text\" title=\"{toc_title}\" href=\"toc.xhtml\"/>
+  </guide>
+</package>", uuid=unique_identifier, toc_title=self.info.toc_title, author=self.info.author, lang=self.info.lang, title=self.info.title, date=Local::now(), publisher=self.info.publisher, manifest=self.manifest(), spine=self.spine_ncx());
 
     zip.write_all(content.as_bytes())?;
 
     // toc.ncx (navigator)
-    zip.start_file("OEBPS/toc.ncx", Default::default())?;
+    zip.start_file("OEBPS/toc.ncx", deflated)?;
     let toc = format!("
     <?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">
@@ -231,7 +259,7 @@ impl EPUB {
     zip.write_all(toc.as_bytes())?;
 
     // toc.xhtml (anchor)
-    zip.start_file("OEBPS/toc.xhtml", Default::default())?;
+    zip.start_file("OEBPS/toc.xhtml", deflated)?;
     let toc = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE html>
 <html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" xml:lang=\"{lang}\" lang=\"{lang}\">
@@ -259,7 +287,7 @@ impl EPUB {
     }
 
     // CSS
-    zip.start_file("OEBPS/styles.css", Default::default())?;
+    zip.start_file("OEBPS/styles.css", deflated)?;
     match &self.info.css {
       Some(css) => {
         zip.write_all(css.as_bytes())?;
